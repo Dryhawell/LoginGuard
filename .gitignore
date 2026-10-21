@@ -1,0 +1,36 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local application logs (created in a later phase)
+logs/*.log
+
+# Generated analysis output (created in a later phase).
+# data/samples/ is tracked synthetic input and is not ignored.
+data/events/
+data/reports/
+
+# Secrets and local environment files
+.env
+*.pem
+credentials.json
+secrets.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

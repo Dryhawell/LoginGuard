@@ -1,0 +1,39 @@
+# SYNTHETIC demonstration data. Not a real authentication log. Documentation addresses only.
+{"timestamp":"2026-09-10T08:00:00Z","event_type":"LOGIN_SUCCESS","username":"carol","source_ip":"198.51.100.10","authentication_method":"password","hostname":"lab-vpn","application":"vpn","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T08:05:00Z","event_type":"LOGIN_SUCCESS","username":"dave","source_ip":"198.51.100.11","application":"mail","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T08:12:00Z","event_type":"LOGIN_SUCCESS","username":"eve","source_ip":"203.0.113.20","application":"portal","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T08:16:00Z","event_type":"LOGIN_SUCCESS","username":"ayşe","source_ip":"2001:db8::10","application":"portal","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T08:18:00Z","event_type":"LOGOUT","username":"carol","source_ip":"198.51.100.10","application":"vpn","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T11:40:00+03:00","event_type":"LOGIN_SUCCESS","username":"wendy","source_ip":"198.51.100.12","metadata":{"dataset":"synthetic","scenario":"normal_success"}}
+{"timestamp":"2026-09-10T08:50:00Z","event_type":"LOGIN_FAILURE","username":"bob","source_ip":"198.51.100.25","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"ordinary_mistakes"}}
+{"timestamp":"2026-09-10T08:50:40Z","event_type":"LOGIN_FAILURE","username":"bob","source_ip":"198.51.100.25","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"ordinary_mistakes"}}
+{"timestamp":"2026-09-10T08:51:10Z","event_type":"LOGIN_SUCCESS","username":"bob","source_ip":"198.51.100.25","metadata":{"dataset":"synthetic","scenario":"ordinary_mistakes"}}
+{"timestamp":"2026-09-10T10:00:00Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T10:00:40Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T10:01:20Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T10:02:05Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T10:03:10Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T10:04:20Z","event_type":"LOGIN_FAILURE","username":"alice","source_ip":"192.0.2.10","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"repeated_failures"}}
+{"timestamp":"2026-09-10T11:00:00Z","event_type":"LOGIN_FAILURE","username":"frank","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T11:01:10Z","event_type":"LOGIN_FAILURE","username":"grace","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T11:02:20Z","event_type":"LOGIN_FAILURE","username":"heidi","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T11:04:00Z","event_type":"LOGIN_FAILURE","username":"ivan","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T11:06:30Z","event_type":"LOGIN_FAILURE","username":"judy","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T11:08:40Z","event_type":"LOGIN_FAILURE","username":"mallory","source_ip":"203.0.113.50","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"password_spraying"}}
+{"timestamp":"2026-09-10T12:10:00Z","event_type":"LOGIN_FAILURE","username":"nora","source_ip":"192.0.2.40","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T12:10:25Z","event_type":"LOGIN_FAILURE","username":"nora","source_ip":"192.0.2.40","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T12:10:50Z","event_type":"LOGIN_FAILURE","username":"nora","source_ip":"192.0.2.40","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T12:11:15Z","event_type":"LOGIN_FAILURE","username":"nora","source_ip":"192.0.2.40","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T12:11:40Z","event_type":"LOGIN_FAILURE","username":"nora","source_ip":"192.0.2.40","failure_reason":"invalid credentials","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T12:12:05Z","event_type":"LOGIN_SUCCESS","username":"nora","source_ip":"192.0.2.40","metadata":{"dataset":"synthetic","scenario":"failure_then_success"}}
+{"timestamp":"2026-09-10T13:00:00Z","event_type":"LOGIN_SUCCESS","metadata":{"dataset":"synthetic","scenario":"missing_optional"}}
+{"timestamp":"2026-09-10T13:05:00Z","event_type":"LOGIN_FAILURE","username":"sam","metadata":{"dataset":"synthetic","scenario":"missing_optional"}}
+{"timestamp":"2026-09-10T14:30:00Z","event_type":"LOGIN_SUCCESS","username":"oscar","source_ip":"198.51.100.60","metadata":{"dataset":"synthetic","scenario":"out_of_order"}}
+{"timestamp":"2026-09-10T09:15:00Z","event_type":"LOGIN_SUCCESS","username":"peggy","source_ip":"198.51.100.61","metadata":{"dataset":"synthetic","scenario":"out_of_order"}}
+{"timestamp":"2026-09-10T15:00:00Z","event_type":"LOGIN_SUCCESS","username":"rita","source_ip":"203.0.113.80","event_id":"synthetic-dup-1","metadata":{"dataset":"synthetic","scenario":"duplicate"}}
+{"timestamp":"2026-09-10T15:00:00Z","event_type":"LOGIN_SUCCESS","username":"rita","source_ip":"203.0.113.80","event_id":"synthetic-dup-1","metadata":{"dataset":"synthetic","scenario":"duplicate"}}
+{not-json
+["not","an","object"]
+{"timestamp":"2026-09-10T16:00:00","event_type":"LOGIN_FAILURE","username":"sam","metadata":{"dataset":"synthetic","scenario":"naive_timestamp"}}
+{"timestamp":"2026-09-10T16:01:00Z","event_type":"LOGIN_FAILURE","username":"sam","source_ip":"192.0.2.010","metadata":{"dataset":"synthetic","scenario":"invalid_ip"}}
+{"timestamp":"2026-09-10T16:05:00Z","event_type":"LOGIN_SUCCESS"} {"timestamp":"2026-09-10T16:06:00Z","event_type":"LOGIN_SUCCESS"}

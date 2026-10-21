@@ -1,0 +1,5 @@
+# LoginGuard — Phase 1
+# The application itself uses the Python 3.12+ standard library only.
+# pytest is listed for the automated tests added in later phases.
+
+pytest>=8.3.0
