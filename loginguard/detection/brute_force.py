@@ -4,6 +4,9 @@ The rule groups ``LOGIN_FAILURE`` events by username and source IP. Usernames
 are compared exactly, including case: ``Alice`` and ``alice`` are different
 accounts because the event model preserves the source spelling.
 
+Password spraying is a different rule. That rule is one source address and
+many distinct usernames. Repeated failures for a single username stay here.
+
 A failure with no username is not the same account as another nameless
 failure. A failure with no source IP is not tied to a shared address. Those
 events are skipped. They are not collected into a placeholder bucket.
@@ -31,6 +34,7 @@ from datetime import timedelta
 from loginguard.detection.config import DetectionConfig
 from loginguard.detection.engine import DetectionEngine
 from loginguard.detection.finding import Finding, Severity
+from loginguard.detection.password_spraying import register_password_spraying
 from loginguard.detection.rules import RuleRegistry
 from loginguard.models import AuthEvent, EventType
 from loginguard.utils.time_utils import format_timestamp
@@ -95,17 +99,20 @@ def register_brute_force(registry: RuleRegistry) -> None:
 def register_builtin_rules(registry: RuleRegistry) -> None:
     """Register the attack rules implemented so far.
 
-    Phase 6 adds brute-force detection only. Later phases add their rules
-    here deliberately.
+    Password-spraying detection is registered beside brute force. Later phases
+    add their rules here deliberately. Importing a rule module does not
+    register it.
     """
     register_brute_force(registry)
+    register_password_spraying(registry)
 
 
 def build_default_engine(config: DetectionConfig | None = None) -> DetectionEngine:
-    """Return an engine with the brute-force rule registered.
+    """Return an engine with the shipped rules registered.
 
-    An empty ``RuleRegistry`` passed to ``DetectionEngine`` still runs no
-    rules. This factory is the explicit way to include the shipped rule.
+    The factory registers brute-force detection and password-spraying
+    detection. An empty ``RuleRegistry`` passed to ``DetectionEngine`` still
+    runs no rules.
     """
     registry = RuleRegistry()
     register_builtin_rules(registry)

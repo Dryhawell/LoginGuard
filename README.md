@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 6 — brute-force detection.** Password spraying, reports, and a dashboard are not implemented yet.
+**Current status: Phase 7 — password-spraying detection.** Suspicious successful login detection, reports, and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM, and a future alert will mean “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -90,7 +90,7 @@ Each valid line is labeled with `metadata.dataset` set to `synthetic` and a `met
 | `out_of_order` | A later line carries an earlier timestamp. |
 | `duplicate` | The same `event_id` appears twice. |
 
-The file also contains a comment banner, a broken JSON line, a JSON array, a timestamp with no offset, an invalid IP, and a line with two JSON values. Those lines become parse issues. They are not alerts, and this phase does not score the file.
+The file also contains a comment banner, a broken JSON line, a JSON array, a timestamp with no offset, an invalid IP, and a line with two JSON values. Those lines become parse issues. They are not alerts. The detection rules score the valid events in a separate step.
 
 From the repository root:
 
@@ -102,7 +102,7 @@ python -c "from loginguard.ingestion import parse_jsonl; r = parse_jsonl('data/s
 
 `DetectionEngine` runs registered rules over `AuthEvent` values and returns `Finding` values. A finding explains why it was created. It means the rule saw something worth investigating. It is not proof of an attack.
 
-Importing the package leaves the registry empty. `build_default_engine` registers the shipped brute-force rule. Password spraying is not registered.
+Importing the package leaves the registry empty. `build_default_engine` registers the brute-force rule and the password-spraying rule. An empty `RuleRegistry` still runs nothing.
 
 `DetectionConfig` holds the demonstration defaults:
 
@@ -110,8 +110,8 @@ Importing the package leaves the registry empty. `build_default_engine` register
 | --- | --- | --- |
 | `brute_force_min_failures` | 5 | `brute-force-same-account` |
 | `brute_force_window` | 5 minutes | `brute-force-same-account` |
-| `password_spray_min_usernames` | 5 | not yet |
-| `password_spray_window` | 10 minutes | not yet |
+| `password_spray_min_usernames` | 5 | `password-spray-distinct-usernames` |
+| `password_spray_window` | 10 minutes | `password-spray-distinct-usernames` |
 
 The engine orders events by timestamp before rules see them. It does not assign a risk score. `CRITICAL` is part of the severity scale and is reserved. Registration rejects it.
 
@@ -120,6 +120,8 @@ The engine orders events by timestamp before rules see them. It does not assign 
 Rule id: `brute-force-same-account`.
 
 The rule counts `LOGIN_FAILURE` events for one username and one source IP. Usernames are compared with their original case. Events missing a username or a source IP are skipped. Five failures inside a rolling five-minute window is the demonstration default. A finding uses severity `MEDIUM`. It means the pattern is worth investigating. It does not mean the account was attacked or compromised. A person mistyping a password, or a script retrying one, can look the same.
+
+This pattern is not password spraying. Password spraying is many distinct usernames from one source address, and that is a separate rule.
 
 One ongoing burst produces one finding. The events in that burst are not reused for a second overlapping finding. A later, separate burst can still produce another finding. Duplicate `event_id` values inside a group are counted once.
 
@@ -132,6 +134,24 @@ from loginguard.ingestion import parse_jsonl
 events = parse_jsonl("data/samples/auth_logs.jsonl").events
 findings = build_default_engine().run(events)
 ```
+
+### Password-spraying rule
+
+Rule id: `password-spray-distinct-usernames`.
+
+Brute force asks whether one account is failing repeatedly from one address. Password spraying asks a different question: did one source address fail against many distinct usernames inside the window? The demonstration default is 5 distinct usernames inside 10 minutes. Both values come from `DetectionConfig`.
+
+Repeated failures against one username do not match this rule, even when there are many of them. That pattern belongs to `brute-force-same-account`. Failures from two source addresses are not added together. A missing source IP is skipped and is not merged with a real address. A missing username is skipped. Usernames are compared with their original case, so `Alice` and `alice` are different accounts.
+
+Only `LOGIN_FAILURE` events count. A successful login is not a failure. A success for one of the usernames does not erase the failures and does not raise the severity.
+
+The window is inclusive. A failure exactly `window` after the oldest failure in the cluster still counts. A failure any later than that does not. When a cluster meets the threshold, those events are consumed and the rule emits one finding for that source address and that cluster. It does not emit one finding per username or one finding per failure. A later burst from the same address can still produce another finding. That consumption is narrower than the Phase 11 alert deduplication.
+
+`observed_count` is the number of distinct usernames, not the number of failures. The finding stores the source IP on `source_ip` and the distinct usernames, in first-seen order, on `affected_usernames`. `affected_username` stays empty because the pattern is not one account. `repr` does not print the usernames or the source address. The description may name them when the text still fits. Related event ids, and the stored username list, are capped at 100. The observed count still reports the full number of distinct usernames.
+
+Severity is `MEDIUM`. The finding is a suspicion, not proof of a spray. A misconfigured client can try several accounts. The recommendation is to review the source, check whether it is a misconfigured client or a spray, not to guess passwords, and not to block an address solely on this signal.
+
+On the synthetic sample, `203.0.113.50` fails against six usernames inside about ten minutes, so this rule flags that group. `alice` from `192.0.2.10` is a single-account burst. It can still produce a brute-force finding. It is not a spray finding. `bob` in `ordinary_mistakes` is not a spray finding either.
 
 ## Requirements
 
@@ -202,7 +222,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection is in place. Later phases add, in order: password-spraying detection, suspicious-success and credential-stuffing heuristics, alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path.
+Brute-force detection and password-spraying detection are in place. Later phases add, in order: suspicious successful login detection, credential-stuffing heuristics, alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path.
 
 ## License
 

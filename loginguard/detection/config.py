@@ -1,9 +1,9 @@
-"""Configurable thresholds for later detection rules.
+"""Configurable thresholds for detection rules.
 
 The values below are demonstration defaults from the project specification.
 They are not universal indicators of malicious activity. The brute-force rule
 reads ``brute_force_min_failures`` and ``brute_force_window``. The password-spray
-settings wait for a later phase.
+rule reads ``password_spray_min_usernames`` and ``password_spray_window``.
 """
 
 from __future__ import annotations

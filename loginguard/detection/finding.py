@@ -62,8 +62,9 @@ class Finding:
     """Explainable output of one rule evaluation.
 
     ``description`` states why the finding exists, including the observed count,
-    the threshold, and the time window the rule used. ``affected_username`` and
-    ``source_ip`` stay on the object for later triage. ``repr`` omits them.
+    the threshold, and the time window the rule used. ``affected_username``,
+    ``affected_usernames``, and ``source_ip`` stay on the object for later
+    triage. ``repr`` omits usernames and source addresses.
     """
 
     finding_id: str
@@ -79,6 +80,7 @@ class Finding:
     first_event_time: datetime | None = None
     last_event_time: datetime | None = None
     affected_username: str | None = None
+    affected_usernames: tuple[str, ...] = ()
     source_ip: str | None = None
 
     def __repr__(self) -> str:
@@ -103,6 +105,7 @@ class Finding:
         first = _aware_time("first_event_time", self.first_event_time, errors)
         last = _aware_time("last_event_time", self.last_event_time, errors)
         username = _optional_text("affected_username", self.affected_username, _MAX_USERNAME, errors)
+        usernames = _usernames(self.affected_usernames, errors)
         source_ip = _optional_ip(self.source_ip, errors)
         if first is not None and last is not None and last < first:
             errors.append("last_event_time: earlier than first_event_time")
@@ -122,6 +125,7 @@ class Finding:
         object.__setattr__(self, "first_event_time", first)
         object.__setattr__(self, "last_event_time", last)
         object.__setattr__(self, "affected_username", username)
+        object.__setattr__(self, "affected_usernames", usernames)
         object.__setattr__(self, "source_ip", source_ip)
 
 
@@ -216,6 +220,24 @@ def _related_ids(value: object, errors: list[str]) -> tuple[str, ...]:
             return ()
         if text is not None:
             cleaned.append(text)
+    return tuple(cleaned)
+
+
+def _usernames(value: object, errors: list[str]) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, tuple | list):
+        errors.append("affected_usernames: expected a sequence of usernames")
+        return ()
+    if len(value) > _MAX_RELATED:
+        errors.append(f"affected_usernames: at most {_MAX_RELATED} usernames are allowed")
+        return ()
+    cleaned: list[str] = []
+    for item in value:
+        text = _optional_text("affected_usernames", item, _MAX_USERNAME, errors)
+        if text is None:
+            if not any(message.startswith("affected_usernames:") for message in errors):
+                errors.append("affected_usernames: usernames must be non-empty text")
+            return ()
+        cleaned.append(text)
     return tuple(cleaned)
 
 

@@ -1,7 +1,8 @@
 """Command-line entry point for LoginGuard.
 
-The CLI still reports project status. JSONL ingestion, sample logs, and
-brute-force detection are available. Password-spraying detection is not.
+The CLI still reports project status. JSONL ingestion, sample logs,
+brute-force detection, and password-spraying detection are available.
+Suspicious successful login detection is not.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="loginguard",
         description=(
             f"{__app_name__}: {__description__} "
-            "Brute-force detection is available. Password-spraying detection is not."
+            "Brute-force and password-spraying detection are available. "
+            "Suspicious successful login detection is not."
         ),
     )
     parser.add_argument(
@@ -62,9 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("%s %s started.", __app_name__, __version__)
 
     print(f"{__app_name__} {__version__}")
-    print("Status: brute-force detection is ready.")
-    print("Password-spraying detection and reports are not implemented yet.")
-    print("Next step: password-spraying detection (Phase 7).")
+    print("Status: password-spraying detection is ready.")
+    print("Suspicious successful login detection and reports are not implemented yet.")
+    print("Next step: suspicious successful login detection (Phase 8).")
     return 0
 
 

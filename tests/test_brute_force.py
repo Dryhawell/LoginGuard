@@ -243,7 +243,11 @@ def test_importing_the_package_does_not_register_the_rule() -> None:
 
 def test_sample_log_flags_alice_and_not_bob() -> None:
     result = parse_jsonl(_SAMPLE)
-    findings = build_default_engine().run(result.events)
+    findings = [
+        finding
+        for finding in build_default_engine().run(result.events)
+        if finding.rule_id == RULE_ID
+    ]
     by_user = {finding.affected_username: finding for finding in findings}
 
     assert by_user["alice"].source_ip == "192.0.2.10"
