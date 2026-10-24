@@ -177,6 +177,8 @@ def test_config_defaults_and_overrides_are_explicit() -> None:
     assert defaults.brute_force_window == timedelta(minutes=5)
     assert defaults.password_spray_min_usernames == 5
     assert defaults.password_spray_window == timedelta(minutes=10)
+    assert defaults.success_after_failure_min_failures == 5
+    assert defaults.success_after_failure_window == timedelta(minutes=10)
 
     custom = DetectionConfig(
         brute_force_min_failures=9,
@@ -191,6 +193,8 @@ def test_config_defaults_and_overrides_are_explicit() -> None:
     assert rule.seen_config.brute_force_min_failures == 9
     assert rule.seen_config.brute_force_window == timedelta(minutes=2)
     assert rule.seen_config.password_spray_min_usernames == 5
+    assert rule.seen_config.success_after_failure_min_failures == 5
+    assert rule.seen_config.success_after_failure_window == timedelta(minutes=10)
 
 
 def test_invalid_configuration_is_rejected() -> None:

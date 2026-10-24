@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 7 — password-spraying detection.** Suspicious successful login detection, reports, and a dashboard are not implemented yet.
+**Current status: Phase 8 — suspicious successful login detection.** Credential-stuffing heuristics, reports, and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM, and a future alert will mean “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -85,10 +85,12 @@ Each valid line is labeled with `metadata.dataset` set to `synthetic` and a `met
 | `ordinary_mistakes` | Two failures, then a success, for one account. |
 | `repeated_failures` | Six failures for one account and one source address inside five minutes. |
 | `password_spraying` | Failures for six usernames from one source address inside ten minutes. |
-| `failure_then_success` | Five failures followed by a success for the same account and source. |
+| `failure_then_success` | Five failures, then a success, for Nora from `192.0.2.40`. The suspicious-success rule flags that success. |
 | `missing_optional` | Valid events with no username, or with a username and no source IP. |
 | `out_of_order` | A later line carries an earlier timestamp. |
 | `duplicate` | The same `event_id` appears twice. |
+
+A source address that has not been seen before is not labeled as an attack. The file has no geolocation, so it cannot show impossible travel. Those two ideas are out of scope for detection.
 
 The file also contains a comment banner, a broken JSON line, a JSON array, a timestamp with no offset, an invalid IP, and a line with two JSON values. Those lines become parse issues. They are not alerts. The detection rules score the valid events in a separate step.
 
@@ -102,7 +104,7 @@ python -c "from loginguard.ingestion import parse_jsonl; r = parse_jsonl('data/s
 
 `DetectionEngine` runs registered rules over `AuthEvent` values and returns `Finding` values. A finding explains why it was created. It means the rule saw something worth investigating. It is not proof of an attack.
 
-Importing the package leaves the registry empty. `build_default_engine` registers the brute-force rule and the password-spraying rule. An empty `RuleRegistry` still runs nothing.
+Importing the package leaves the registry empty. `build_default_engine` registers the brute-force rule, the password-spraying rule, and the suspicious successful login rule. An empty `RuleRegistry` still runs nothing.
 
 `DetectionConfig` holds the demonstration defaults:
 
@@ -112,6 +114,8 @@ Importing the package leaves the registry empty. `build_default_engine` register
 | `brute_force_window` | 5 minutes | `brute-force-same-account` |
 | `password_spray_min_usernames` | 5 | `password-spray-distinct-usernames` |
 | `password_spray_window` | 10 minutes | `password-spray-distinct-usernames` |
+| `success_after_failure_min_failures` | 5 | `success-after-failures` |
+| `success_after_failure_window` | 10 minutes | `success-after-failures` |
 
 The engine orders events by timestamp before rules see them. It does not assign a risk score. `CRITICAL` is part of the severity scale and is reserved. Registration rejects it.
 
@@ -125,7 +129,7 @@ This pattern is not password spraying. Password spraying is many distinct userna
 
 One ongoing burst produces one finding. The events in that burst are not reused for a second overlapping finding. A later, separate burst can still produce another finding. Duplicate `event_id` values inside a group are counted once.
 
-On the synthetic sample, `alice` from `192.0.2.10` has six failures inside five minutes. `bob` has two ordinary failures and does not match. `nora` has five failures before a later success, so this rule also flags that failure burst. The following success is not counted and is not, by itself, a separate finding yet.
+On the synthetic sample, `alice` from `192.0.2.10` has six failures inside five minutes. `bob` has two ordinary failures and does not match. `nora` has five failures before a later success, so this rule also flags that failure burst. The following success is not counted by this rule. `success-after-failures` reports that success separately.
 
 ```python
 from loginguard.detection import build_default_engine
@@ -152,6 +156,24 @@ The window is inclusive. A failure exactly `window` after the oldest failure in 
 Severity is `MEDIUM`. The finding is a suspicion, not proof of a spray. A misconfigured client can try several accounts. The recommendation is to review the source, check whether it is a misconfigured client or a spray, not to guess passwords, and not to block an address solely on this signal.
 
 On the synthetic sample, `203.0.113.50` fails against six usernames inside about ten minutes, so this rule flags that group. `alice` from `192.0.2.10` is a single-account burst. It can still produce a brute-force finding. It is not a spray finding. `bob` in `ordinary_mistakes` is not a spray finding either.
+
+### Suspicious successful login rule
+
+Rule id: `success-after-failures`.
+
+Brute force asks whether one account is failing repeatedly from one address. Password spraying asks whether one address is failing against many accounts. This rule asks whether one account succeeded after a recent burst of failures. The demonstration default is 5 `LOGIN_FAILURE` events inside a 10-minute window. Both values come from `DetectionConfig`: `success_after_failure_min_failures` and `success_after_failure_window`. A couple of typos, such as Bob's two mistakes, stay below the threshold.
+
+The window ends at the `LOGIN_SUCCESS` timestamp and looks backward. A failure for the same username counts when its timestamp is inside that span, including a failure exactly `window` before the success. A failure any earlier does not. Failures after the success do not count for that success. The success event is the trigger. It is not added to the failure count. Only `LOGIN_FAILURE` events count. Logouts, lockouts, and other types are ignored.
+
+Grouping is by username only. Names keep their original case, so `Alice` and `alice` are different accounts. Source IP is not part of the group key. Failures may come from one address or several. The success may come from the same address or from a different one. The success address does not have to match a failure address. The finding stores the success address on `source_ip` when the success has one. Failure addresses are listed in the description when they are present. A missing username is skipped and is not merged with other nameless events. A missing source IP does not drop the event. Duplicate `event_id` values count once; the earliest copy is kept.
+
+Each success that meets the threshold produces one finding. The failures are not consumed, so two qualifying successes can produce two findings even when they share failures. Related event ids are the counted failure ids in time order, then the success id, capped at 100. When the list would be longer, the earliest 99 failure ids and the success id are kept. `observed_count` is still the full failure count. `first_event_time` is the earliest counted failure. `last_event_time` is the success time. `repr` does not print the username or any address.
+
+Severity is `HIGH`. The description states that this is an investigative signal, not proof of compromise. Someone can mistype a password and then type it correctly. The recommendation is to investigate the account, ask the user whether they eventually typed the right password, and review the source of the success. It does not suggest guessing passwords, blocking the account as automatic proof, or calling the pattern a confirmed takeover. `CRITICAL` is not used.
+
+An unfamiliar source IP is not detected as an attack. A successful login from an address that has not been seen before does not, by itself, produce a finding. Impossible travel is not detected. The logs have no geolocation, and this rule does not invent geography from an IP address.
+
+On the synthetic sample, `failure_then_success` is Nora from `192.0.2.40`: five failures, then a success. `parse_jsonl` and `build_default_engine` produce this rule's finding for Nora. Alice in `repeated_failures` has failures and no success, so this rule does not flag her. The brute-force rule still can. Bob in `ordinary_mistakes` has two failures and a success, which is below this threshold.
 
 ## Requirements
 
@@ -222,7 +244,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection and password-spraying detection are in place. Later phases add, in order: suspicious successful login detection, credential-stuffing heuristics, alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path.
+Brute-force detection, password-spraying detection, and suspicious successful login detection are in place. Later phases add, in order: credential-stuffing heuristics, alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

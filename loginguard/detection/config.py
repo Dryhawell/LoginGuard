@@ -3,7 +3,9 @@
 The values below are demonstration defaults from the project specification.
 They are not universal indicators of malicious activity. The brute-force rule
 reads ``brute_force_min_failures`` and ``brute_force_window``. The password-spray
-rule reads ``password_spray_min_usernames`` and ``password_spray_window``.
+rule reads ``password_spray_min_usernames`` and ``password_spray_window``. The
+suspicious-success rule reads ``success_after_failure_min_failures`` and
+``success_after_failure_window``.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ DEFAULT_BRUTE_FORCE_MIN_FAILURES = 5
 DEFAULT_BRUTE_FORCE_WINDOW = timedelta(minutes=5)
 DEFAULT_PASSWORD_SPRAY_MIN_USERNAMES = 5
 DEFAULT_PASSWORD_SPRAY_WINDOW = timedelta(minutes=10)
+DEFAULT_SUCCESS_AFTER_FAILURE_MIN_FAILURES = 5
+DEFAULT_SUCCESS_AFTER_FAILURE_WINDOW = timedelta(minutes=10)
 
 _MAX_THRESHOLD = 100_000
 _MAX_WINDOW = timedelta(days=366)
@@ -42,6 +46,8 @@ class DetectionConfig:
     brute_force_window: timedelta = DEFAULT_BRUTE_FORCE_WINDOW
     password_spray_min_usernames: int = DEFAULT_PASSWORD_SPRAY_MIN_USERNAMES
     password_spray_window: timedelta = DEFAULT_PASSWORD_SPRAY_WINDOW
+    success_after_failure_min_failures: int = DEFAULT_SUCCESS_AFTER_FAILURE_MIN_FAILURES
+    success_after_failure_window: timedelta = DEFAULT_SUCCESS_AFTER_FAILURE_WINDOW
 
     def __post_init__(self) -> None:
         errors: list[str] = []
@@ -51,8 +57,18 @@ class DetectionConfig:
             self.password_spray_min_usernames,
             errors,
         )
+        _check_threshold(
+            "success_after_failure_min_failures",
+            self.success_after_failure_min_failures,
+            errors,
+        )
         _check_window("brute_force_window", self.brute_force_window, errors)
         _check_window("password_spray_window", self.password_spray_window, errors)
+        _check_window(
+            "success_after_failure_window",
+            self.success_after_failure_window,
+            errors,
+        )
         if errors:
             raise DetectionConfigError(tuple(errors))
 

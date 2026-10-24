@@ -20,8 +20,9 @@ that would reuse those events does not. That keeps one ongoing burst from
 becoming one finding per failure. Richer alert deduplication is a later phase.
 
 A finding is a suspicion. People mistype passwords, and scripts retry them.
-Severity stays ``MEDIUM`` for that reason. ``HIGH`` is reserved for a later
-rule that sees a stronger combination, such as a success after the burst.
+Severity stays ``MEDIUM`` for that reason. A success after the burst is a
+separate rule with severity ``HIGH``, and that finding is still not proof
+of compromise.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from loginguard.detection.config import DetectionConfig
 from loginguard.detection.engine import DetectionEngine
 from loginguard.detection.finding import Finding, Severity
 from loginguard.detection.password_spraying import register_password_spraying
+from loginguard.detection.suspicious_login import register_suspicious_login
 from loginguard.detection.rules import RuleRegistry
 from loginguard.models import AuthEvent, EventType
 from loginguard.utils.time_utils import format_timestamp
@@ -99,20 +101,21 @@ def register_brute_force(registry: RuleRegistry) -> None:
 def register_builtin_rules(registry: RuleRegistry) -> None:
     """Register the attack rules implemented so far.
 
-    Password-spraying detection is registered beside brute force. Later phases
-    add their rules here deliberately. Importing a rule module does not
-    register it.
+    Password-spraying detection and suspicious successful login detection are
+    registered beside brute force. Later phases add their rules here
+    deliberately. Importing a rule module does not register it.
     """
     register_brute_force(registry)
     register_password_spraying(registry)
+    register_suspicious_login(registry)
 
 
 def build_default_engine(config: DetectionConfig | None = None) -> DetectionEngine:
     """Return an engine with the shipped rules registered.
 
-    The factory registers brute-force detection and password-spraying
-    detection. An empty ``RuleRegistry`` passed to ``DetectionEngine`` still
-    runs no rules.
+    The factory registers brute-force detection, password-spraying detection,
+    and suspicious successful login detection. An empty ``RuleRegistry``
+    passed to ``DetectionEngine`` still runs no rules.
     """
     registry = RuleRegistry()
     register_builtin_rules(registry)
