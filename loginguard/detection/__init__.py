@@ -1,8 +1,9 @@
 """Rule-based detection over normalized authentication events.
 
 Importing this package does not register a rule. ``build_default_engine``
-registers the brute-force rule, the password-spraying rule, and the
-suspicious successful login rule. An empty ``RuleRegistry`` still runs nothing.
+registers the brute-force rule, the password-spraying rule, the suspicious
+successful login rule, and the distributed-failure heuristic. An empty
+``RuleRegistry`` still runs nothing.
 """
 
 from loginguard.detection.brute_force import (
@@ -10,6 +11,10 @@ from loginguard.detection.brute_force import (
     build_default_engine,
     register_brute_force,
     register_builtin_rules,
+)
+from loginguard.detection.credential_stuffing import (
+    CredentialStuffingRule,
+    register_credential_stuffing,
 )
 from loginguard.detection.password_spraying import (
     PasswordSprayRule,
@@ -32,6 +37,7 @@ from loginguard.detection.rules import (
 
 __all__ = [
     "BruteForceRule",
+    "CredentialStuffingRule",
     "DetectionConfig",
     "PasswordSprayRule",
     "SuspiciousLoginRule",
@@ -48,6 +54,7 @@ __all__ = [
     "build_default_engine",
     "register_brute_force",
     "register_builtin_rules",
+    "register_credential_stuffing",
     "register_password_spraying",
     "register_suspicious_login",
 ]

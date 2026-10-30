@@ -5,7 +5,9 @@ They are not universal indicators of malicious activity. The brute-force rule
 reads ``brute_force_min_failures`` and ``brute_force_window``. The password-spray
 rule reads ``password_spray_min_usernames`` and ``password_spray_window``. The
 suspicious-success rule reads ``success_after_failure_min_failures`` and
-``success_after_failure_window``.
+``success_after_failure_window``. The distributed-failure heuristic reads
+``distributed_min_usernames``, ``distributed_min_source_ips``, and
+``distributed_window``.
 """
 
 from __future__ import annotations
@@ -19,6 +21,9 @@ DEFAULT_PASSWORD_SPRAY_MIN_USERNAMES = 5
 DEFAULT_PASSWORD_SPRAY_WINDOW = timedelta(minutes=10)
 DEFAULT_SUCCESS_AFTER_FAILURE_MIN_FAILURES = 5
 DEFAULT_SUCCESS_AFTER_FAILURE_WINDOW = timedelta(minutes=10)
+DEFAULT_DISTRIBUTED_MIN_USERNAMES = 5
+DEFAULT_DISTRIBUTED_MIN_SOURCE_IPS = 3
+DEFAULT_DISTRIBUTED_WINDOW = timedelta(minutes=15)
 
 _MAX_THRESHOLD = 100_000
 _MAX_WINDOW = timedelta(days=366)
@@ -48,6 +53,9 @@ class DetectionConfig:
     password_spray_window: timedelta = DEFAULT_PASSWORD_SPRAY_WINDOW
     success_after_failure_min_failures: int = DEFAULT_SUCCESS_AFTER_FAILURE_MIN_FAILURES
     success_after_failure_window: timedelta = DEFAULT_SUCCESS_AFTER_FAILURE_WINDOW
+    distributed_min_usernames: int = DEFAULT_DISTRIBUTED_MIN_USERNAMES
+    distributed_min_source_ips: int = DEFAULT_DISTRIBUTED_MIN_SOURCE_IPS
+    distributed_window: timedelta = DEFAULT_DISTRIBUTED_WINDOW
 
     def __post_init__(self) -> None:
         errors: list[str] = []
@@ -62,6 +70,16 @@ class DetectionConfig:
             self.success_after_failure_min_failures,
             errors,
         )
+        _check_threshold(
+            "distributed_min_usernames",
+            self.distributed_min_usernames,
+            errors,
+        )
+        _check_threshold(
+            "distributed_min_source_ips",
+            self.distributed_min_source_ips,
+            errors,
+        )
         _check_window("brute_force_window", self.brute_force_window, errors)
         _check_window("password_spray_window", self.password_spray_window, errors)
         _check_window(
@@ -69,6 +87,7 @@ class DetectionConfig:
             self.success_after_failure_window,
             errors,
         )
+        _check_window("distributed_window", self.distributed_window, errors)
         if errors:
             raise DetectionConfigError(tuple(errors))
 

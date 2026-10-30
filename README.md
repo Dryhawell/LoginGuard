@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 8 — suspicious successful login detection.** Credential-stuffing heuristics, reports, and a dashboard are not implemented yet.
+**Current status: Phase 9 — credential-stuffing heuristic.** The alert model, risk assessment, reports, and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM, and a future alert will mean “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -86,6 +86,7 @@ Each valid line is labeled with `metadata.dataset` set to `synthetic` and a `met
 | `repeated_failures` | Six failures for one account and one source address inside five minutes. |
 | `password_spraying` | Failures for six usernames from one source address inside ten minutes. |
 | `failure_then_success` | Five failures, then a success, for Nora from `192.0.2.40`. The suspicious-success rule flags that success. |
+| `distributed_failures` | Failures for five usernames from three documentation addresses inside fifteen minutes. No single address has five usernames, so this group is not a spray. |
 | `missing_optional` | Valid events with no username, or with a username and no source IP. |
 | `out_of_order` | A later line carries an earlier timestamp. |
 | `duplicate` | The same `event_id` appears twice. |
@@ -104,7 +105,7 @@ python -c "from loginguard.ingestion import parse_jsonl; r = parse_jsonl('data/s
 
 `DetectionEngine` runs registered rules over `AuthEvent` values and returns `Finding` values. A finding explains why it was created. It means the rule saw something worth investigating. It is not proof of an attack.
 
-Importing the package leaves the registry empty. `build_default_engine` registers the brute-force rule, the password-spraying rule, and the suspicious successful login rule. An empty `RuleRegistry` still runs nothing.
+Importing the package leaves the registry empty. `build_default_engine` registers the brute-force rule, the password-spraying rule, the suspicious successful login rule, and the distributed-failure heuristic. An empty `RuleRegistry` still runs nothing.
 
 `DetectionConfig` holds the demonstration defaults:
 
@@ -116,6 +117,9 @@ Importing the package leaves the registry empty. `build_default_engine` register
 | `password_spray_window` | 10 minutes | `password-spray-distinct-usernames` |
 | `success_after_failure_min_failures` | 5 | `success-after-failures` |
 | `success_after_failure_window` | 10 minutes | `success-after-failures` |
+| `distributed_min_usernames` | 5 | `distributed-failure-heuristic` |
+| `distributed_min_source_ips` | 3 | `distributed-failure-heuristic` |
+| `distributed_window` | 15 minutes | `distributed-failure-heuristic` |
 
 The engine orders events by timestamp before rules see them. It does not assign a risk score. `CRITICAL` is part of the severity scale and is reserved. Registration rejects it.
 
@@ -174,6 +178,24 @@ Severity is `HIGH`. The description states that this is an investigative signal,
 An unfamiliar source IP is not detected as an attack. A successful login from an address that has not been seen before does not, by itself, produce a finding. Impossible travel is not detected. The logs have no geolocation, and this rule does not invent geography from an IP address.
 
 On the synthetic sample, `failure_then_success` is Nora from `192.0.2.40`: five failures, then a success. `parse_jsonl` and `build_default_engine` produce this rule's finding for Nora. Alice in `repeated_failures` has failures and no success, so this rule does not flag her. The brute-force rule still can. Bob in `ordinary_mistakes` has two failures and a success, which is below this threshold.
+
+### Distributed-failure heuristic
+
+Rule id: `distributed-failure-heuristic`.
+
+Ordinary authentication logs cannot prove credential stuffing. The log records that a login failed. It does not record a reliable copy of the password that was offered, and it cannot show that a password came from a leak. This rule does not query a breach database and does not invent breach evidence. The finding says the pattern is consistent with credential-stuffing-like or distributed guessing behavior. It does not say that stuffing occurred.
+
+Password spraying is a different rule, `password-spray-distinct-usernames`. That rule is one source IP and at least 5 distinct usernames inside 10 minutes, with severity `MEDIUM`. A single-IP multi-username failure pattern stays with that rule only. This heuristic does not emit a second finding that calls the same events credential stuffing.
+
+This rule looks for a distributed shape: many source addresses and many usernames with `LOGIN_FAILURE` events inside one window. The demonstration defaults, all overridable on `DetectionConfig`, are 5 distinct usernames, 3 distinct source addresses, and 15 minutes. `Finding.threshold` is the username minimum. `observed_count` is the distinct username count. The distinct source-address count is written into the description. `Finding` keeps a single `source_ip`, so that field stays empty here. `affected_username` stays empty. The usernames are stored on `affected_usernames`.
+
+Only `LOGIN_FAILURE` events count. A success is not a failure. A missing username or a missing source IP is skipped and is not merged into a shared bucket. Usernames keep their original case. Duplicate `event_id` values count once. The window is inclusive. When a cluster meets both minimums, those events are consumed and the rule emits one finding for the whole cluster. It does not emit one finding per address or one finding per username. Related event ids, and the stored username list, are capped at 100. `repr` does not print usernames or addresses.
+
+Severity is `LOW`, not `MEDIUM`. The username minimum is the same as the spray rule, and the window is longer than the spray window, so the evidence bar is not clearly higher. Requiring three source addresses changes the shape. It does not outweigh that comparison, and the log still cannot show a leaked password. `HIGH` and `CRITICAL` are not used.
+
+The recommendation is to investigate the source addresses and the accounts. Do not assume a breach. Do not guess passwords.
+
+On the synthetic sample, `distributed_failures` is five usernames from three documentation addresses inside fifteen minutes. No one of those addresses has five usernames, so the spray rule does not own that group, and this heuristic does. `203.0.113.50` in `password_spraying` is one address and stays with the spray rule only. Alice in `repeated_failures` is one account and one address. Nora in `failure_then_success` is one account. Neither of those scenarios produces this finding on its own.
 
 ## Requirements
 
@@ -244,7 +266,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, and suspicious successful login detection are in place. Later phases add, in order: credential-stuffing heuristics, alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, and a conservative distributed-failure heuristic are in place. Later phases add, in order: alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 
