@@ -33,6 +33,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 
 from loginguard.detection.config import DetectionConfig
+from loginguard.detection.credential_stuffing import register_credential_stuffing
 from loginguard.detection.engine import DetectionEngine
 from loginguard.detection.finding import Finding, Severity
 from loginguard.detection.password_spraying import register_password_spraying
@@ -101,21 +102,24 @@ def register_brute_force(registry: RuleRegistry) -> None:
 def register_builtin_rules(registry: RuleRegistry) -> None:
     """Register the attack rules implemented so far.
 
-    Password-spraying detection and suspicious successful login detection are
-    registered beside brute force. Later phases add their rules here
-    deliberately. Importing a rule module does not register it.
+    Password-spraying detection, suspicious successful login detection, and
+    the distributed-failure heuristic are registered beside brute force.
+    Later phases add their rules here deliberately. Importing a rule module
+    does not register it.
     """
     register_brute_force(registry)
     register_password_spraying(registry)
     register_suspicious_login(registry)
+    register_credential_stuffing(registry)
 
 
 def build_default_engine(config: DetectionConfig | None = None) -> DetectionEngine:
     """Return an engine with the shipped rules registered.
 
     The factory registers brute-force detection, password-spraying detection,
-    and suspicious successful login detection. An empty ``RuleRegistry``
-    passed to ``DetectionEngine`` still runs no rules.
+    suspicious successful login detection, and the distributed-failure
+    heuristic. An empty ``RuleRegistry`` passed to ``DetectionEngine`` still
+    runs no rules.
     """
     registry = RuleRegistry()
     register_builtin_rules(registry)

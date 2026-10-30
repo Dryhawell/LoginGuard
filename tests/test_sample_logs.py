@@ -35,7 +35,7 @@ def test_sample_file_is_labeled_synthetic_and_parses() -> None:
     result = parse_jsonl(_SAMPLE)
 
     assert result.source_name == "auth_logs.jsonl"
-    assert result.valid_count == 33
+    assert result.valid_count == 38
     assert result.invalid_count == 6
     assert all(event.metadata.get("dataset") == "synthetic" for event in result.events)
     assert all(event.timestamp.tzinfo is not None for event in result.events)
@@ -108,6 +108,20 @@ def test_sample_scenarios_have_the_intended_shapes() -> None:
     assert len(duplicates) == 2
     assert duplicates[0] == duplicates[1]
     assert duplicates[0].event_id == "synthetic-dup-1"
+
+    distributed = _scenario(events, "distributed_failures")
+    assert {event.event_type for event in distributed} == {EventType.LOGIN_FAILURE}
+    distributed_users = {event.username for event in distributed}
+    distributed_ips = {event.source_ip for event in distributed}
+    assert len(distributed_users) >= 5
+    assert len(distributed_ips) >= 3
+    assert None not in distributed_users
+    assert None not in distributed_ips
+    span = max(event.timestamp for event in distributed) - min(event.timestamp for event in distributed)
+    assert span <= timedelta(minutes=15)
+    for source_ip in distributed_ips:
+        names_from_ip = {event.username for event in distributed if event.source_ip == source_ip}
+        assert len(names_from_ip) < 5
 
     usernames = {event.username for event in events if event.username}
     addresses = {event.source_ip for event in events if event.source_ip}
