@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 10 — alerts and risk scoring.** Correlation, deduplication, reports, and a dashboard are not implemented yet.
+**Current status: Phase 11 — correlation and deduplication.** Local storage, reports, and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -199,7 +199,7 @@ On the synthetic sample, `distributed_failures` is five usernames from three doc
 
 ## Alerts
 
-`alert_from_finding` builds one `Alert` from one `Finding`. It does not run a detector and it does not merge findings. Correlation and deduplication are the next phase, so two findings that share events become two alerts.
+`alert_from_finding` builds one `Alert` from one `Finding`. It does not run a detector. `dedupe_alerts` then drops a later finding that repeats the same rule, account, and source address before the previous finding has been quiet for its window. A finding that starts after that quiet gap is kept, so a later incident can still raise an alert. The tradeoff is that a second burst inside the quiet gap does not raise a second alert.
 
 The alert copies the rule id, the severity the rule already chose, the recommendation, the related event ids, and the optional account and source address. `status` is `OPEN`. LoginGuard does not assign, acknowledge, or close alerts.
 
@@ -216,6 +216,14 @@ events = parse_jsonl("data/samples/auth_logs.jsonl").events
 findings = build_default_engine().run(events)
 alert = alert_from_finding(findings[0])
 ```
+
+`dedupe_alerts(findings)` is the path that applies the quiet-gap rule before building alerts.
+
+## Correlation
+
+`correlate_events` groups authentication events after sorting them and keeping one copy of each `event_id`. The earliest copy wins. Select one or more keys: username, source address, and event type. An event missing a selected key is left out, so blank usernames are not treated as one account.
+
+Inside a key, a new group starts when the next event is later than the previous one by more than the window. A gap equal to the window stays in the same group. A chain of small gaps can become one long group. That keeps a continuing story together. It can also hide a second burst that never quite goes quiet.
 
 ## Risk score
 
@@ -320,7 +328,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, and risk scoring are in place. Later phases add, in order: correlation and deduplication, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, and alert deduplication are in place. Later phases add, in order: local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

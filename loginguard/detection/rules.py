@@ -12,7 +12,7 @@ from typing import Protocol, runtime_checkable
 
 from loginguard.detection.config import DetectionConfig
 from loginguard.detection.finding import Finding, Severity
-from loginguard.models import AuthEvent
+from loginguard.models.auth_event import AuthEvent
 
 _MAX_RULE_ID = 128
 

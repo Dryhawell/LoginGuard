@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from loginguard.detection.config import DetectionConfig
 from loginguard.detection.finding import Finding, Severity
 from loginguard.detection.rules import InvalidRuleError, RuleRegistry
-from loginguard.models import AuthEvent
+from loginguard.models.auth_event import AuthEvent
 
 
 class DetectionEngine:

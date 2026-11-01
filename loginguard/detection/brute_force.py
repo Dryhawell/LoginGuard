@@ -39,7 +39,7 @@ from loginguard.detection.finding import Finding, Severity
 from loginguard.detection.password_spraying import register_password_spraying
 from loginguard.detection.suspicious_login import register_suspicious_login
 from loginguard.detection.rules import RuleRegistry
-from loginguard.models import AuthEvent, EventType
+from loginguard.models.auth_event import AuthEvent, EventType
 from loginguard.utils.time_utils import format_timestamp
 
 RULE_ID = "brute-force-same-account"
