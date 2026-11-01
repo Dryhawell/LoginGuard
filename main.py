@@ -2,8 +2,8 @@
 
 The CLI still reports project status. JSONL ingestion, sample logs,
 brute-force detection, password-spraying detection, suspicious
-successful login detection, and the credential-stuffing heuristic are
-available. The alert model and risk assessment are not.
+successful login detection, the credential-stuffing heuristic, alerts,
+and risk scoring are available. Correlation and deduplication are not.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="loginguard",
         description=(
             f"{__app_name__}: {__description__} "
-            "Brute-force, password-spraying, suspicious-success, and the "
-            "credential-stuffing heuristic are available. "
-            "The alert model and risk assessment are not."
+            "Brute-force, password-spraying, suspicious-success, the "
+            "credential-stuffing heuristic, alerts, and risk scoring are available. "
+            "Correlation and deduplication are not."
         ),
     )
     parser.add_argument(
@@ -66,9 +66,9 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("%s %s started.", __app_name__, __version__)
 
     print(f"{__app_name__} {__version__}")
-    print("Status: credential-stuffing heuristic is ready.")
-    print("The alert model and risk assessment are not implemented yet.")
-    print("Next step: alert model and risk assessment (Phase 10).")
+    print("Status: alerts and risk scoring are ready.")
+    print("Correlation and deduplication are not implemented yet.")
+    print("Next step: correlation and deduplication (Phase 11).")
     return 0
 
 

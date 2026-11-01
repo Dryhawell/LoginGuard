@@ -2,9 +2,9 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 9 — credential-stuffing heuristic.** The alert model, risk assessment, reports, and a dashboard are not implemented yet.
+**Current status: Phase 10 — alerts and risk scoring.** Correlation, deduplication, reports, and a dashboard are not implemented yet.
 
-LoginGuard does not replace an enterprise SIEM, and a future alert will mean “this pattern deserves investigation,” not “this account was compromised.”
+LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
 ## Overview
 
@@ -121,7 +121,7 @@ Importing the package leaves the registry empty. `build_default_engine` register
 | `distributed_min_source_ips` | 3 | `distributed-failure-heuristic` |
 | `distributed_window` | 15 minutes | `distributed-failure-heuristic` |
 
-The engine orders events by timestamp before rules see them. It does not assign a risk score. `CRITICAL` is part of the severity scale and is reserved. Registration rejects it.
+The engine orders events by timestamp before rules see them. It does not assign a risk score. Scoring is a separate step and reads the findings the rules already produced. `CRITICAL` is part of the severity scale and is reserved. Registration rejects it. No current rule emits it.
 
 ### Brute-force rule
 
@@ -197,6 +197,60 @@ The recommendation is to investigate the source addresses and the accounts. Do n
 
 On the synthetic sample, `distributed_failures` is five usernames from three documentation addresses inside fifteen minutes. No one of those addresses has five usernames, so the spray rule does not own that group, and this heuristic does. `203.0.113.50` in `password_spraying` is one address and stays with the spray rule only. Alice in `repeated_failures` is one account and one address. Nora in `failure_then_success` is one account. Neither of those scenarios produces this finding on its own.
 
+## Alerts
+
+`alert_from_finding` builds one `Alert` from one `Finding`. It does not run a detector and it does not merge findings. Correlation and deduplication are the next phase, so two findings that share events become two alerts.
+
+The alert copies the rule id, the severity the rule already chose, the recommendation, the related event ids, and the optional account and source address. `status` is `OPEN`. LoginGuard does not assign, acknowledge, or close alerts.
+
+`description` and `evidence` state the rule id, the observed count, the threshold, and the window. They also state that a finding is a suspicion, not proof of compromise. `repr` omits usernames and source addresses. Passwords, tokens, cookies, and raw log lines are rejected. The alert timestamp defaults to the finding's last event time, then its first event time. The clock is not read.
+
+Brute force stays `MEDIUM`. Password spraying stays `MEDIUM`. Success after failures stays `HIGH`. The distributed-failure heuristic stays `LOW`. `CRITICAL` exists on the severity scale and is unused by these rules.
+
+```python
+from loginguard.detection import build_default_engine
+from loginguard.ingestion import parse_jsonl
+from loginguard.models import alert_from_finding
+
+events = parse_jsonl("data/samples/auth_logs.jsonl").events
+findings = build_default_engine().run(events)
+alert = alert_from_finding(findings[0])
+```
+
+## Risk score
+
+`score_finding` turns one finding into an integer from 0 through 100. The score is a project heuristic. It is not a probability of compromise, and the bands are not an industry standard.
+
+| Score | Band |
+| --- | --- |
+| 0–20 | LOW |
+| 21–50 | MEDIUM |
+| 51–75 | HIGH |
+| 76–100 | CRITICAL |
+
+The breakdown is a list of point terms. Those terms sum to the score.
+
+| Term | Points |
+| --- | --- |
+| Severity base | INFO 10, LOW 15, MEDIUM 35, HIGH 65. Each base sits inside the matching band. A CRITICAL finding would start at 85. No current rule emits CRITICAL. |
+| Failures above the threshold | 2 points each, capped at 8. Used only by `brute-force-same-account` and `success-after-failures`, because those rules count failures. Spray and the distributed heuristic count usernames, so they do not receive this term. |
+| Affected accounts | 1 point per distinct account named on the finding, capped at 6. Omitted when the finding names no account. A name stored twice counts once. |
+
+Extras stop at the top of the severity band, and the score also stops at 100. A MEDIUM finding stays inside 21–50. A HIGH finding stays inside 51–75. An ordinary single finding does not reach 76. The CRITICAL band is part of the scale and is unused by current rules.
+
+A brute-force finding does not receive points for a later success. That pattern is a separate finding from `success-after-failures`. Its higher score is the HIGH base that rule already chose, not a success bonus added onto brute force. An unfamiliar source address adds nothing. The address stored on the finding does not add points by itself.
+
+With `findings` from the example above:
+
+```python
+from loginguard.risk import score_finding
+
+score = score_finding(findings[0])
+score.score
+score.band
+score.components
+```
+
 ## Requirements
 
 - Windows, macOS, or Linux
@@ -266,7 +320,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, and a conservative distributed-failure heuristic are in place. Later phases add, in order: alerts and risk scoring, correlation, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, and risk scoring are in place. Later phases add, in order: correlation and deduplication, local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 
