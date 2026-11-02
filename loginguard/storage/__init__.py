@@ -5,9 +5,9 @@ Default paths, relative to the working directory:
 - ``data/events/events.jsonl`` for normalized events
 - ``data/reports/alerts.json`` for the current alert document
 
-``data/reports/analysis_summary.json`` belongs to reporting, which is a later
-phase. File storage has no lock, no concurrent writers, and no history beyond
-the event stream and the latest alert document.
+``data/reports/analysis_summary.json`` is the analysis summary written by
+``analyze``. File storage has no lock, no concurrent writers, and no history
+beyond the latest event snapshot, alert document, and analysis summary.
 """
 
 from pathlib import Path

@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 13 — command line.** JSON and CSV report export, and a dashboard, are not implemented yet.
+**Current status: Phase 14 — text, JSON, and CSV reports.** Broader tests and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -312,7 +312,13 @@ Global options come before the subcommand. `--log-level` writes the application 
 
 `stats` counts stored events, event types, distinct usernames, distinct source addresses, and alerts. It prints those counts, not the names or addresses.
 
-`report` prints a text report from the same snapshot: counts, evidence, recommendations, and the project limitations. The numeric score is printed by `analyze` and is not stored in the alert file. JSON and CSV export are the next phase.
+`analyze --format json` prints the analysis document. The same document is stored at `data/reports/analysis_summary.json`. It records the run's start and finish in UTC, the input file name, valid and invalid counts, event totals, alert totals, evidence, recommendations, and the heuristic score. The text summary on stdout still omits usernames and source addresses. The JSON and CSV exports include the accounts and addresses already stored on the alerts, because that file is the triage export.
+
+`report` reads that summary. `--format text` is the default. `--format json` and `--format csv` use the same figures. `--output` writes the file and leaves neighboring files alone. A CSV cell that begins with `=`, `+`, `-`, or `@` is prefixed with a quote so a spreadsheet treats it as text.
+
+When the summary file is missing, the text report still describes the stored events and alerts. Invalid-line counts and the run times stay unrecorded. They are not shown as zero.
+
+A finding remains a suspicion, not proof of compromise. The score is not a probability. It lives in the analysis summary. The alert file does not store it.
 
 A missing or unreadable file exits 1. An invalid command line exits 2. Invalid log lines are data issues, so `validate` and `analyze` still exit 0 when the file itself can be read.
 
@@ -320,11 +326,13 @@ A missing or unreadable file exits 1. An invalid command line exits 2. Invalid l
 python main.py
 python main.py --help
 python main.py analyze --input data/samples/auth_logs.jsonl
+python main.py analyze --input data/samples/auth_logs.jsonl --format json
 python main.py validate --input data/samples/auth_logs.jsonl
 python main.py alerts
 python main.py alerts --severity HIGH
 python main.py stats
 python main.py report
+python main.py report --format csv --output data/reports/report.csv
 ```
 
 `analyze` writes `data/events/events.jsonl` and `data/reports/alerts.json` unless `--events` and `--alerts` point somewhere else. Those default paths are gitignored.
@@ -378,7 +386,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, local JSON storage, and the text command line are in place. Later phases add, in order: JSON and CSV reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, local JSON storage, the command line, and text, JSON, and CSV reports are in place. Later phases add, in order: broader tests and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

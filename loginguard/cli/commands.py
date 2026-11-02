@@ -4,7 +4,8 @@ Stdout is the operator's report. Application logs stay on stderr and carry
 counts only: no usernames, source addresses, or raw lines. Finding a pattern
 is a successful run. A missing file or a storage failure is a runtime error.
 
-JSON and CSV export are not implemented here.
+``analyze --format json`` and ``report --format text|json|csv`` export the
+analysis summary. Application logs still carry counts only.
 """
 
 from __future__ import annotations
@@ -22,8 +23,19 @@ from loginguard.ingestion import parse_jsonl
 from loginguard.ingestion.parser import ParseResult
 from loginguard.models.alert import Alert, alerts_from_findings
 from loginguard.models.auth_event import EventType
+from loginguard.reporting import (
+    DEFAULT_SUMMARY_PATH,
+    SummaryStore,
+    build_summary,
+    render_csv,
+    render_json,
+    render_text,
+    summary_from_snapshot,
+    utc_now,
+)
 from loginguard.risk import RiskScore, score_finding
 from loginguard.storage import DEFAULT_ALERT_PATH, DEFAULT_EVENT_PATH, AlertStore, EventStore
+from loginguard.storage.files import replace_text
 from loginguard.utils.logger import LOGGER_NAME, VALID_LEVELS
 
 _SEVERITY_ORDER = (
@@ -45,8 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="loginguard",
         description=(
             f"{__app_name__}: {__description__} "
-            "Commands analyze a local JSONL file, validate it, and read the "
-            "stored snapshot. JSON and CSV export are not implemented yet."
+            "Commands analyze a local JSONL file, validate it, and report "
+            "the stored snapshot as text, JSON, or CSV."
         ),
     )
     parser.add_argument(
@@ -67,13 +79,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Detect patterns in a JSONL log and store the snapshot.",
         description=(
             "Parse a JSONL authentication log, run the built-in rules, "
-            "deduplicate alerts, and replace the local event and alert files "
-            "with this run. Prints a short summary. JSON export is not "
-            "implemented yet."
+            "deduplicate alerts, and replace the local event, alert, and "
+            "summary files with this run. The default summary is text. "
+            "--format json prints the analysis document."
         ),
     )
     _add_input(analyze)
     _add_store_paths(analyze)
+    _add_summary_path(analyze)
+    analyze.add_argument(
+        "--format",
+        dest="export_format",
+        default="text",
+        choices=("text", "json"),
+        help="Summary on stdout: text or json (default: text).",
+    )
 
     validate = subcommands.add_parser(
         "validate",
@@ -120,11 +140,25 @@ def build_parser() -> argparse.ArgumentParser:
         "report",
         help="Print a text report from the stored snapshot.",
         description=(
-            "Print a human-readable report from the stored events and alerts. "
-            "JSON and CSV export are not implemented yet."
+            "Write the analysis report from the stored summary. "
+            "Text is the default. JSON and CSV use the same figures. "
+            "Pass --output to write a file instead of stdout."
         ),
     )
     _add_store_paths(report)
+    _add_summary_path(report)
+    report.add_argument(
+        "--format",
+        dest="export_format",
+        default="text",
+        choices=("text", "json", "csv"),
+        help="Report format: text, json, or csv (default: text).",
+    )
+    report.add_argument(
+        "--output",
+        type=Path,
+        help="Write the report to this file instead of stdout.",
+    )
     return parser
 
 
@@ -141,7 +175,13 @@ def dispatch(args: argparse.Namespace) -> str | None:
     if command is None:
         return None
     if command == "analyze":
-        return analyze(args.input, args.events, args.alerts)
+        return analyze(
+            args.input,
+            args.events,
+            args.alerts,
+            args.summary,
+            args.export_format,
+        )
     if command == "validate":
         return validate(args.input)
     if command == "alerts":
@@ -149,7 +189,13 @@ def dispatch(args: argparse.Namespace) -> str | None:
     if command == "stats":
         return statistics(args.events, args.alerts)
     if command == "report":
-        return report(args.events, args.alerts)
+        return report(
+            args.events,
+            args.alerts,
+            args.summary,
+            args.export_format,
+            args.output,
+        )
     raise ValueError(f"Unknown command {command!r}.")
 
 
@@ -157,27 +203,55 @@ def status_lines() -> tuple[str, ...]:
     """Return the text printed when no subcommand is given."""
     return (
         f"{__app_name__} {__version__}",
-        "Status: analyze, validate, alerts, stats, and a text report are ready.",
-        "JSON and CSV export are not implemented yet.",
-        "Next step: report formats (Phase 14).",
+        "Status: text, JSON, and CSV reports are ready.",
+        "Next step: broader tests and error handling (Phase 15).",
     )
 
 
-def analyze(input_path: Path, event_path: Path, alert_path: Path) -> str:
+def analyze(
+    input_path: Path,
+    event_path: Path,
+    alert_path: Path,
+    summary_path: Path,
+    export_format: str,
+) -> str:
     """Run the default rules and replace the stored snapshot."""
+    started = utc_now()
     parsed = parse_jsonl(input_path)
     findings = dedupe_findings(build_default_engine().run(parsed.events))
     alerts = alerts_from_findings(findings)
     scores = tuple(score_finding(finding) for finding in findings)
+    completed = utc_now()
+    summary = build_summary(
+        input_name=input_path.name,
+        events=parsed.events,
+        invalid_events=parsed.invalid_count,
+        findings=findings,
+        alerts=alerts,
+        scores=scores,
+        started_at=started,
+        completed_at=completed,
+    )
     EventStore(event_path).replace(parsed.events)
     AlertStore(alert_path).save(alerts)
+    SummaryStore(summary_path).save(summary)
     _log(
         "Analysis finished. valid=%s invalid=%s alerts=%s",
         parsed.valid_count,
         parsed.invalid_count,
         len(alerts),
     )
-    return _analysis_text(input_path, event_path, alert_path, parsed, alerts, scores)
+    if export_format == "json":
+        return render_json(summary)
+    return _analysis_text(
+        input_path,
+        event_path,
+        alert_path,
+        summary_path,
+        parsed,
+        alerts,
+        scores,
+    )
 
 
 def validate(input_path: Path) -> str:
@@ -222,41 +296,48 @@ def statistics(event_path: Path, alert_path: Path) -> str:
     return "\n".join(lines)
 
 
-def report(event_path: Path, alert_path: Path) -> str:
-    """Render a text report from the stored snapshot."""
-    parsed, alerts = _snapshot(event_path, alert_path)
-    labels = sorted({event.raw_source for event in parsed.events if event.raw_source})
-    lines = [
-        "LoginGuard Security Analysis",
-        "============================",
-        f"Input labels: {', '.join(labels) if labels else '(not recorded)'}",
-        *_count_lines(parsed, alerts),
-        "",
-        "Findings:",
-    ]
-    if alerts:
-        for alert in alerts:
-            lines.extend(_alert_lines(alert))
-            lines.append("")
+def report(
+    event_path: Path,
+    alert_path: Path,
+    summary_path: Path,
+    export_format: str,
+    output: Path | None,
+) -> str:
+    """Render the stored summary, or the event snapshot when no summary exists."""
+    stored = SummaryStore(summary_path).load()
+    if stored is None:
+        parsed, alerts = _snapshot(event_path, alert_path)
+        labels = sorted({event.raw_source for event in parsed.events if event.raw_source})
+        summary = summary_from_snapshot(
+            parsed.events,
+            alerts,
+            input_name=", ".join(labels) if labels else None,
+        )
     else:
-        lines.append("No alerts in the stored snapshot.")
-        lines.append("")
-    lines.extend(
+        summary = stored
+    if export_format == "json":
+        text = render_json(summary)
+    elif export_format == "csv":
+        text = render_csv(summary)
+    else:
+        text = render_text(summary)
+    if output is None:
+        return text
+    replace_text(output, text if text.endswith("\n") else text + "\n")
+    return "\n".join(
         (
-            "Limitations:",
-            "A finding is a suspicion, not proof of compromise.",
-            "The heuristic score is not a probability and is not stored in the alert file.",
-            "File storage has no lock and keeps only the latest alert document.",
-            "LoginGuard does not replace an enterprise SIEM.",
+            "Report written.",
+            f"Format: {export_format}",
+            f"Output: {output}",
         )
     )
-    return "\n".join(lines)
 
 
 def _analysis_text(
     input_path: Path,
     event_path: Path,
     alert_path: Path,
+    summary_path: Path,
     parsed: ParseResult,
     alerts: Sequence[Alert],
     scores: Sequence[RiskScore],
@@ -271,6 +352,7 @@ def _analysis_text(
             _highest_score(scores),
             f"Events stored: {event_path}",
             f"Alerts stored: {alert_path}",
+            f"Summary stored: {summary_path}",
             "A finding is a suspicion, not proof of compromise.",
         )
     )
@@ -340,6 +422,18 @@ def _add_input(parser: argparse.ArgumentParser) -> None:
         type=Path,
         required=True,
         help="UTF-8 JSONL authentication log.",
+    )
+
+
+def _add_summary_path(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--summary",
+        type=Path,
+        default=DEFAULT_SUMMARY_PATH,
+        help=(
+            "Analysis summary to write or read "
+            f"(default: {DEFAULT_SUMMARY_PATH.as_posix()})."
+        ),
     )
 
 

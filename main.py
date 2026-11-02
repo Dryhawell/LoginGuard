@@ -1,8 +1,8 @@
 """Command-line entry point for LoginGuard.
 
 ``analyze`` reads a JSONL log, runs the built-in rules, and stores the
-snapshot. ``validate`` only parses. ``alerts``, ``stats``, and ``report``
-read that snapshot. JSON and CSV export are a later phase.
+snapshot. ``validate`` only parses. ``alerts`` and ``stats`` read that snapshot. ``report`` writes text, JSON,
+or CSV from the analysis summary.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from loginguard import __app_name__, __version__
 from loginguard.cli import build_parser, dispatch
 from loginguard.cli.commands import status_lines
 from loginguard.ingestion import IngestionError
+from loginguard.reporting import ReportError
 from loginguard.storage import StorageError
 from loginguard.utils.logger import configure_logging
 
@@ -42,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("%s %s started.", __app_name__, __version__)
     try:
         text = dispatch(args)
-    except (IngestionError, StorageError) as exc:
+    except (IngestionError, StorageError, ReportError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     if text is None:
