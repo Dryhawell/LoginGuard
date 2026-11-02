@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 12 — local JSON storage.** The full CLI, reports, and a dashboard are not implemented yet.
+**Current status: Phase 13 — command line.** JSON and CSV report export, and a dashboard, are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -235,13 +235,15 @@ The alert document is written to a temporary file in the same directory and then
 
 File storage has no lock and no database. Two writers can interleave event lines or lose one alert save. A crash during an append can leave a partial last line, which the next load reports as malformed JSON. Duplicate `event_id` values stay in the file; detection still counts one of them. Saving alerts replaces that document only. It does not keep earlier alert documents.
 
+`append` adds lines and leaves earlier lines in place. `replace` writes one snapshot and drops the previous contents of that file. The `analyze` command uses `replace`, so a second analysis stores that run only. A sibling file in the directory is left alone.
+
 ```python
 from loginguard.storage import AlertStore, EventStore
 
 events = EventStore("data/events/events.jsonl")
-events.append(parsed.events)
+events.replace(result.events)
 alerts = AlertStore("data/reports/alerts.json")
-alerts.save(deduped)
+alerts.save(stored_alerts)
 ```
 
 ## Risk score
@@ -298,13 +300,42 @@ python -m pip install -r requirements.txt
 
 To pin an interpreter explicitly: `py -3.13 -m venv .venv`. If no 3.12+ runtime exists, install one from [python.org](https://www.python.org/downloads/) and open a new terminal. If execution policy blocks activation, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then activate again.
 
+## Command line
+
+Global options come before the subcommand. `--log-level` writes the application log to stderr. That log records counts. It does not record usernames, source addresses, or raw lines.
+
+`analyze` parses a JSONL file, runs the built-in rules, deduplicates alerts, and replaces the event and alert snapshot. The summary prints counts and the highest heuristic score. It states that the score is not a probability. Detecting a pattern exits 0.
+
+`validate` parses a file and prints rejected lines. It does not run rules and it does not write the snapshot. Issue text does not quote the raw line.
+
+`alerts` lists the stored alerts. `--severity HIGH` keeps one severity. The account and source address are on this list because it is the triage view.
+
+`stats` counts stored events, event types, distinct usernames, distinct source addresses, and alerts. It prints those counts, not the names or addresses.
+
+`report` prints a text report from the same snapshot: counts, evidence, recommendations, and the project limitations. The numeric score is printed by `analyze` and is not stored in the alert file. JSON and CSV export are the next phase.
+
+A missing or unreadable file exits 1. An invalid command line exits 2. Invalid log lines are data issues, so `validate` and `analyze` still exit 0 when the file itself can be read.
+
+```powershell
+python main.py
+python main.py --help
+python main.py analyze --input data/samples/auth_logs.jsonl
+python main.py validate --input data/samples/auth_logs.jsonl
+python main.py alerts
+python main.py alerts --severity HIGH
+python main.py stats
+python main.py report
+```
+
+`analyze` writes `data/events/events.jsonl` and `data/reports/alerts.json` unless `--events` and `--alerts` point somewhere else. Those default paths are gitignored.
+
 ## Usage
 
 ```powershell
 python main.py
 python main.py --help
 python main.py --version
-python main.py --log-level DEBUG
+python main.py --log-level DEBUG analyze --input data/samples/auth_logs.jsonl
 ```
 
 Exit codes:
@@ -347,7 +378,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, and local JSON storage are in place. Later phases add, in order: the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, local JSON storage, and the text command line are in place. Later phases add, in order: JSON and CSV reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

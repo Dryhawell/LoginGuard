@@ -204,6 +204,24 @@ def test_alert_document_rejects_a_secret_field_and_the_wrong_schema(tmp_path: Pa
     assert SCHEMA in str(schema_error.value)
 
 
+def test_replace_keeps_only_the_latest_snapshot(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    sibling = tmp_path / "notes.txt"
+    sibling.write_text("keep", encoding="utf-8")
+    store = EventStore(path)
+
+    store.replace((_event("evt-1"), _event("evt-2")))
+    store.replace((_event("evt-3"),))
+
+    loaded = store.load()
+    assert [event.event_id for event in loaded.events] == ["evt-3"]
+    assert sibling.read_text(encoding="utf-8") == "keep"
+
+    store.replace(())
+    assert path.read_text(encoding="utf-8") == ""
+    assert store.load().events == ()
+
+
 def test_sequences_must_be_the_right_type(tmp_path: Path) -> None:
     with pytest.raises(TypeError):
         EventStore(tmp_path / "events.jsonl").append("nope")  # type: ignore[arg-type]

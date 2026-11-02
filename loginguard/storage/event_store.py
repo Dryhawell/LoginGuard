@@ -1,7 +1,7 @@
-"""Append-only JSON Lines storage for normalized authentication events.
+"""JSON Lines storage for normalized authentication events.
 
-The file is a stream. A new batch is added at the end. Saving alerts, or
-saving a later batch, does not rewrite earlier lines. One malformed line
+``append`` adds a batch at the end and does not rewrite earlier lines.
+``replace`` writes a fresh snapshot for one analysis run. One malformed line
 stays an issue; the valid lines around it are still returned.
 
 This is a single-process file. Two writers can interleave lines, and a crash
@@ -18,11 +18,11 @@ from pathlib import Path
 from loginguard.ingestion import IngestionError, ParseResult, parse_jsonl
 from loginguard.models.auth_event import AuthEvent
 from loginguard.storage.errors import StorageError
-from loginguard.storage.files import append_text
+from loginguard.storage.files import append_text, replace_text
 
 
 class EventStore:
-    """Read and append ``AuthEvent`` records at one JSON Lines path."""
+    """Read, append, and replace ``AuthEvent`` records at one JSON Lines path."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -44,11 +44,26 @@ class EventStore:
         records = _require_events(events)
         if not records:
             return 0
-        lines = [
-            json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
-            for event in records
-        ]
-        append_text(self.path, "\n".join(lines) + "\n")
+        append_text(self.path, _jsonl_text(records))
+        return len(records)
+
+    def replace(self, events: Sequence[AuthEvent]) -> int:
+        """Replace the file with ``events``.
+
+        The analyze command uses this so a second run stores that run only.
+        ``append`` still keeps earlier lines. An empty sequence writes an
+        empty file, which removes a previous snapshot. The write goes through
+        a temporary file in the same directory.
+
+        Returns:
+            The number of events written.
+
+        Raises:
+            TypeError: ``events`` is not a sequence of ``AuthEvent`` values.
+            StorageError: the file or its directory cannot be written.
+        """
+        records = _require_events(events)
+        replace_text(self.path, _jsonl_text(records))
         return len(records)
 
     def load(self) -> ParseResult:
@@ -67,6 +82,16 @@ class EventStore:
             return parse_jsonl(self.path)
         except IngestionError as exc:
             raise StorageError(str(exc)) from None
+
+
+def _jsonl_text(events: Sequence[AuthEvent]) -> str:
+    if not events:
+        return ""
+    lines = [
+        json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
+        for event in events
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _require_events(events: Sequence[AuthEvent]) -> tuple[AuthEvent, ...]:
