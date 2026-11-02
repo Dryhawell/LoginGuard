@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 11 — correlation and deduplication.** Local storage, reports, and a dashboard are not implemented yet.
+**Current status: Phase 12 — local JSON storage.** The full CLI, reports, and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -225,6 +225,25 @@ alert = alert_from_finding(findings[0])
 
 Inside a key, a new group starts when the next event is later than the previous one by more than the window. A gap equal to the window stays in the same group. A chain of small gaps can become one long group. That keeps a continuing story together. It can also hide a second burst that never quite goes quiet.
 
+## Local storage
+
+`EventStore` appends normalized events to a JSON Lines file. The default path is `data/events/events.jsonl`. `AlertStore` replaces one JSON document. The default path is `data/reports/alerts.json`, with schema `loginguard.alerts.v1`. Both paths are ignored by git. The stores create a missing parent directory. A missing file loads as an empty collection.
+
+Event lines are appended. A second batch does not rewrite earlier lines, and a sibling file in the same directory is left alone. One malformed line becomes a `ParseIssue`. The valid lines around it are still returned. The issue text does not quote the line. A file that is not UTF-8 is refused before more text is added.
+
+The alert document is written to a temporary file in the same directory and then moved into place with `os.replace`. A failed replace leaves the previous document in place. An empty save writes a valid document with no alerts. A document with a different schema is rejected. `data/reports/analysis_summary.json` is reserved for the reporting phase and is not written here.
+
+File storage has no lock and no database. Two writers can interleave event lines or lose one alert save. A crash during an append can leave a partial last line, which the next load reports as malformed JSON. Duplicate `event_id` values stay in the file; detection still counts one of them. Saving alerts replaces that document only. It does not keep earlier alert documents.
+
+```python
+from loginguard.storage import AlertStore, EventStore
+
+events = EventStore("data/events/events.jsonl")
+events.append(parsed.events)
+alerts = AlertStore("data/reports/alerts.json")
+alerts.save(deduped)
+```
+
 ## Risk score
 
 `score_finding` turns one finding into an integer from 0 through 100. The score is a project heuristic. It is not a probability of compromise, and the bands are not an industry standard.
@@ -314,7 +333,7 @@ python -m pytest
 - Routine logs omit usernames and source IP addresses.
 - When you later use real logs, remove secrets and unnecessary personal data before sharing a file or committing it. Sample data in this repository will be synthetic only.
 
-Generated files, once later phases create them, are stored locally:
+Generated files are stored locally:
 
 - `logs/` — application log files
 - `data/events/` — normalized events
@@ -328,7 +347,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, and alert deduplication are in place. Later phases add, in order: local JSON storage, the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, and local JSON storage are in place. Later phases add, in order: the full CLI, reports, broader tests, and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

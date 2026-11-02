@@ -3,8 +3,8 @@
 The CLI still reports project status. JSONL ingestion, sample logs,
 brute-force detection, password-spraying detection, suspicious
 successful login detection, the credential-stuffing heuristic, alerts,
-risk scoring, correlation, and alert deduplication are available.
-Local storage is not.
+risk scoring, correlation, alert deduplication, and local JSON storage
+are available. The full analyze command is not.
 """
 
 from __future__ import annotations
@@ -26,7 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
             f"{__app_name__}: {__description__} "
             "Brute-force, password-spraying, suspicious-success, the "
             "credential-stuffing heuristic, alerts, risk scoring, correlation, "
-            "and alert deduplication are available. Local storage is not."
+            "alert deduplication, and local JSON storage are available. "
+            "The full analyze command is not."
         ),
     )
     parser.add_argument(
@@ -67,9 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("%s %s started.", __app_name__, __version__)
 
     print(f"{__app_name__} {__version__}")
-    print("Status: correlation and alert deduplication are ready.")
-    print("Local storage is not implemented yet.")
-    print("Next step: local storage (Phase 12).")
+    print("Status: local JSON storage for events and alerts is ready.")
+    print("The full analyze command is not implemented yet.")
+    print("Next step: command-line analyze, validate, alerts, and statistics (Phase 13).")
     return 0
 
 
