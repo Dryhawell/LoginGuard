@@ -14,7 +14,7 @@ from loginguard.correlation import dedupe_findings
 from loginguard.detection import build_default_engine
 from loginguard.ingestion import parse_jsonl
 from loginguard.models import alerts_from_findings
-from loginguard.storage import AlertStore, EventStore
+from loginguard.storage import AlertStore, EventStore, StorageError
 from main import main
 
 _SAMPLE = Path(__file__).resolve().parents[1] / "data" / "samples" / "auth_logs.jsonl"
@@ -36,8 +36,8 @@ def _run(argv: list[str]) -> int:
 def test_status_describes_the_text_commands(capsys: pytest.CaptureFixture[str]) -> None:
     assert _run([]) == 0
     output = capsys.readouterr().out
-    assert "text, JSON, and CSV reports are ready." in output
-    assert "Phase 15" in output
+    assert "regression checks and snapshot error handling are ready." in output
+    assert "Phase 16" in output
 
 
 def test_help_lists_commands(capsys: pytest.CaptureFixture[str]) -> None:
@@ -226,6 +226,63 @@ def test_a_single_success_is_not_an_error(tmp_path: Path, capsys: pytest.Capture
     assert "Alerts: 0" in output
     assert "Highest heuristic score: none." in output
     assert AlertStore(alerts).load() == ()
+
+
+def test_unreadable_input_exits_without_quoting_bytes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    directory = tmp_path / "logs"
+    directory.mkdir()
+    raw = tmp_path / "raw.jsonl"
+    raw.write_bytes(b"\xff\xfe" + _SECRET.encode("utf-8"))
+    events, alerts, summary = _paths(tmp_path)
+
+    assert _run(["validate", "--input", str(directory)]) == 1
+    directory_error = capsys.readouterr().err
+    assert "expected a file" in directory_error
+    assert _SECRET not in directory_error
+
+    assert _run(
+        ["analyze", "--input", str(raw), "--events", events, "--alerts", alerts, "--summary", summary]
+    ) == 1
+    raw_error = capsys.readouterr().err
+    assert "not valid UTF-8" in raw_error
+    assert _SECRET not in raw_error
+    assert not Path(events).exists()
+
+
+def test_a_failed_snapshot_leaves_the_previous_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events, alerts, summary = _paths(tmp_path)
+    Path(events).write_text("previous-events\n", encoding="utf-8")
+    Path(alerts).write_text("previous-alerts\n", encoding="utf-8")
+    Path(summary).write_text("previous-summary\n", encoding="utf-8")
+
+    def fail_publish(items: object) -> None:
+        raise StorageError("analysis_summary.json: unable to write the file")
+
+    monkeypatch.setattr("loginguard.cli.commands.replace_many", fail_publish)
+
+    assert _run(
+        [
+            "analyze",
+            "--input",
+            str(_SAMPLE),
+            "--events",
+            events,
+            "--alerts",
+            alerts,
+            "--summary",
+            summary,
+        ]
+    ) == 1
+    error = capsys.readouterr().err
+    assert "unable to write the file" in error
+    assert "alice" not in error
+    assert Path(events).read_text(encoding="utf-8") == "previous-events\n"
+    assert Path(alerts).read_text(encoding="utf-8") == "previous-alerts\n"
+    assert Path(summary).read_text(encoding="utf-8") == "previous-summary\n"
 
 
 def test_json_and_csv_reports_use_the_recorded_run(

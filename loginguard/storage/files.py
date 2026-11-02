@@ -3,13 +3,15 @@
 Event records are appended. Alert documents are replaced as a whole.
 Replacement writes a temporary file in the same directory and then
 ``os.replace`` swaps it into place, so a failed write leaves the previous
-document untouched. The stores do not delete sibling files.
+document untouched. ``replace_many`` prepares every temporary copy before
+the first destination changes. The stores do not delete sibling files.
 """
 
 from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
 from loginguard.storage.errors import StorageError
@@ -78,6 +80,62 @@ def replace_text(path: Path, text: str) -> None:
     Raises:
         StorageError: the directory or the file cannot be written.
     """
+    temporary: Path | None = None
+    try:
+        temporary = _write_temp(path, text)
+        os.replace(temporary, path)
+    except StorageError:
+        raise
+    except PermissionError:
+        raise StorageError(f"{path.name}: permission denied") from None
+    except OSError:
+        raise StorageError(f"{path.name}: unable to write the file") from None
+    finally:
+        _discard(temporary)
+
+
+def replace_many(items: Sequence[tuple[Path, str]]) -> None:
+    """Replace several files only after every temporary copy is ready.
+
+    Preparing the copies happens first. If that step fails, every destination
+    still has its previous contents and the copies are removed. The final
+    rename then moves each copy into place. A failure in that narrow rename
+    can leave the earlier destinations already updated. Files that were not
+    part of ``items`` are left alone.
+
+    Raises:
+        TypeError: ``items`` is not pairs of a path and text.
+        StorageError: two destinations are the same file, or a file cannot be written.
+    """
+    pairs = _require_pairs(items)
+    if not pairs:
+        return
+    seen: set[Path] = set()
+    for path, _text in pairs:
+        key = path.absolute()
+        if key in seen:
+            raise StorageError("snapshot paths must be distinct files")
+        seen.add(key)
+
+    staged: list[Path] = []
+    index = 0
+    try:
+        for index, (path, text) in enumerate(pairs):
+            staged.append(_write_temp(path, text))
+        for index, ((path, _text), temporary) in enumerate(zip(pairs, staged, strict=True)):
+            os.replace(temporary, path)
+    except StorageError:
+        raise
+    except PermissionError:
+        raise StorageError(f"{pairs[index][0].name}: permission denied") from None
+    except OSError:
+        raise StorageError(f"{pairs[index][0].name}: unable to write the file") from None
+    finally:
+        for temporary in staged:
+            _discard(temporary)
+
+
+def _write_temp(path: Path, text: str) -> Path:
     ensure_parent(path)
     temporary = path.parent / f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
     try:
@@ -85,14 +143,30 @@ def replace_text(path: Path, text: str) -> None:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except PermissionError:
-        raise StorageError(f"{path.name}: permission denied") from None
     except OSError:
-        raise StorageError(f"{path.name}: unable to write the file") from None
-    finally:
-        if temporary.exists():
-            try:
-                temporary.unlink()
-            except OSError:
-                pass
+        _discard(temporary)
+        raise
+    return temporary
+
+
+def _discard(temporary: Path | None) -> None:
+    if temporary is None or not temporary.exists():
+        return
+    try:
+        temporary.unlink()
+    except OSError:
+        return
+
+
+def _require_pairs(items: Sequence[tuple[Path, str]]) -> tuple[tuple[Path, str], ...]:
+    if isinstance(items, (str, bytes)) or not isinstance(items, Sequence):
+        raise TypeError("items must be a sequence of path and text pairs")
+    pairs: list[tuple[Path, str]] = []
+    for item in items:
+        if not isinstance(item, tuple) or len(item) != 2:
+            raise TypeError("items must be a sequence of path and text pairs")
+        path, text = item
+        if not isinstance(path, Path) or not isinstance(text, str):
+            raise TypeError("items must be a sequence of path and text pairs")
+        pairs.append((path, text))
+    return tuple(pairs)

@@ -2,7 +2,7 @@
 
 Defensive, offline analysis of authentication logs. LoginGuard is a learning and portfolio project for Blue Team practice. It will read logs you are authorized to examine, look for suspicious authentication patterns, and explain why an alert was raised.
 
-**Current status: Phase 14 — text, JSON, and CSV reports.** Broader tests and a dashboard are not implemented yet.
+**Current status: Phase 15 — regression checks and snapshot error handling.** Larger-file performance and a dashboard are not implemented yet.
 
 LoginGuard does not replace an enterprise SIEM. An alert means “this pattern deserves investigation,” not “this account was compromised.”
 
@@ -304,7 +304,7 @@ To pin an interpreter explicitly: `py -3.13 -m venv .venv`. If no 3.12+ runtime 
 
 Global options come before the subcommand. `--log-level` writes the application log to stderr. That log records counts. It does not record usernames, source addresses, or raw lines.
 
-`analyze` parses a JSONL file, runs the built-in rules, deduplicates alerts, and replaces the event and alert snapshot. The summary prints counts and the highest heuristic score. It states that the score is not a probability. Detecting a pattern exits 0.
+`analyze` parses a JSONL file, runs the built-in rules, deduplicates alerts, and replaces the event, alert, and summary files together. Every temporary copy is written before the first destination changes. If that preparation fails, the previous snapshot stays. The summary prints counts and the highest heuristic score. It states that the score is not a probability. Detecting a pattern exits 0. A directory, a file that is not UTF-8, or a failed write exits 1. The error names the problem and does not quote the file body.
 
 `validate` parses a file and prints rejected lines. It does not run rules and it does not write the snapshot. Issue text does not quote the raw line.
 
@@ -386,7 +386,7 @@ Use LoginGuard only on logs you own or are allowed to analyze. The project must 
 
 ## Roadmap
 
-Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, local JSON storage, the command line, and text, JSON, and CSV reports are in place. Later phases add, in order: broader tests and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
+Brute-force detection, password-spraying detection, suspicious successful login detection, a conservative distributed-failure heuristic, alerts, risk scoring, correlation, alert deduplication, local JSON storage, the command line, text, JSON, and CSV reports, and a sample-wide regression check are in place. Later phases add, in order: larger-file behavior and documentation. A Windows Event Log adapter and a dashboard are optional later phases and are not part of the first release path. Unfamiliar source addresses and impossible travel stay out of scope.
 
 ## License
 

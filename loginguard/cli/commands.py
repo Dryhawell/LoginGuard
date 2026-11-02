@@ -31,11 +31,14 @@ from loginguard.reporting import (
     render_json,
     render_text,
     summary_from_snapshot,
+    summary_to_json,
     utc_now,
 )
 from loginguard.risk import RiskScore, score_finding
 from loginguard.storage import DEFAULT_ALERT_PATH, DEFAULT_EVENT_PATH, AlertStore, EventStore
-from loginguard.storage.files import replace_text
+from loginguard.storage.alert_store import render_alerts
+from loginguard.storage.event_store import render_events
+from loginguard.storage.files import replace_many, replace_text
 from loginguard.utils.logger import LOGGER_NAME, VALID_LEVELS
 
 _SEVERITY_ORDER = (
@@ -203,8 +206,8 @@ def status_lines() -> tuple[str, ...]:
     """Return the text printed when no subcommand is given."""
     return (
         f"{__app_name__} {__version__}",
-        "Status: text, JSON, and CSV reports are ready.",
-        "Next step: broader tests and error handling (Phase 15).",
+        "Status: regression checks and snapshot error handling are ready.",
+        "Next step: larger inputs and steadier window handling (Phase 16).",
     )
 
 
@@ -215,7 +218,11 @@ def analyze(
     summary_path: Path,
     export_format: str,
 ) -> str:
-    """Run the default rules and replace the stored snapshot."""
+    """Run the default rules and replace the stored snapshot.
+
+    The event file, the alert file, and the summary are prepared together.
+    A failure while preparing those copies leaves the previous files in place.
+    """
     started = utc_now()
     parsed = parse_jsonl(input_path)
     findings = dedupe_findings(build_default_engine().run(parsed.events))
@@ -232,9 +239,13 @@ def analyze(
         started_at=started,
         completed_at=completed,
     )
-    EventStore(event_path).replace(parsed.events)
-    AlertStore(alert_path).save(alerts)
-    SummaryStore(summary_path).save(summary)
+    replace_many(
+        (
+            (event_path, render_events(parsed.events)),
+            (alert_path, render_alerts(alerts)),
+            (summary_path, summary_to_json(summary)),
+        )
+    )
     _log(
         "Analysis finished. valid=%s invalid=%s alerts=%s",
         parsed.valid_count,

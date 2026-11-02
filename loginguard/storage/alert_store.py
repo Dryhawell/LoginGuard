@@ -94,13 +94,7 @@ class AlertStore:
             TypeError: ``alerts`` is not a sequence of ``Alert`` values.
             StorageError: the file or its directory cannot be written.
         """
-        records = _require_alerts(alerts)
-        document = {
-            "schema": SCHEMA,
-            "alerts": [alert_to_dict(alert) for alert in records],
-        }
-        text = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
-        replace_text(self.path, text)
+        replace_text(self.path, render_alerts(alerts))
 
     def load(self) -> tuple[Alert, ...]:
         """Return the alerts in the document.
@@ -124,6 +118,16 @@ class AlertStore:
         except OSError:
             raise StorageError(f"{self.path.name}: unable to read the file") from None
         return alerts_from_document(text)
+
+
+def render_alerts(alerts: Sequence[Alert]) -> str:
+    """Return the alert document. An empty sequence is a valid empty document."""
+    records = _require_alerts(alerts)
+    document = {
+        "schema": SCHEMA,
+        "alerts": [alert_to_dict(alert) for alert in records],
+    }
+    return json.dumps(document, ensure_ascii=False, indent=2) + "\n"
 
 
 def alert_to_dict(alert: Alert) -> dict[str, object]:

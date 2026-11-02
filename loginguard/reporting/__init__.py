@@ -14,7 +14,9 @@ from loginguard.reporting.summary import (
     ReportFinding,
     SummaryStore,
     build_summary,
+    summary_from_json,
     summary_from_snapshot,
+    summary_to_json,
 )
 
 DEFAULT_SUMMARY_PATH = Path("data/reports/analysis_summary.json")
@@ -30,6 +32,8 @@ __all__ = [
     "render_csv",
     "render_json",
     "render_text",
+    "summary_from_json",
     "summary_from_snapshot",
+    "summary_to_json",
     "utc_now",
 ]

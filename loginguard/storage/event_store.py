@@ -44,7 +44,7 @@ class EventStore:
         records = _require_events(events)
         if not records:
             return 0
-        append_text(self.path, _jsonl_text(records))
+        append_text(self.path, render_events(records))
         return len(records)
 
     def replace(self, events: Sequence[AuthEvent]) -> int:
@@ -63,7 +63,7 @@ class EventStore:
             StorageError: the file or its directory cannot be written.
         """
         records = _require_events(events)
-        replace_text(self.path, _jsonl_text(records))
+        replace_text(self.path, render_events(records))
         return len(records)
 
     def load(self) -> ParseResult:
@@ -84,12 +84,14 @@ class EventStore:
             raise StorageError(str(exc)) from None
 
 
-def _jsonl_text(events: Sequence[AuthEvent]) -> str:
-    if not events:
+def render_events(events: Sequence[AuthEvent]) -> str:
+    """Return JSON Lines for ``events``. An empty sequence is an empty string."""
+    records = _require_events(events)
+    if not records:
         return ""
     lines = [
         json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
-        for event in events
+        for event in records
     ]
     return "\n".join(lines) + "\n"
 

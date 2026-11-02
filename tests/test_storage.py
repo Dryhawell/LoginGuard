@@ -14,6 +14,7 @@ from loginguard.models import AlertStatus, AuthEvent
 from loginguard.models.alert import Alert
 from loginguard.detection.finding import Severity
 from loginguard.storage import SCHEMA, AlertStore, EventStore, StorageError
+from loginguard.storage.files import replace_many
 
 _WHEN = datetime(2026, 9, 10, 10, 0, tzinfo=timezone.utc)
 _LATER = datetime(2026, 9, 10, 10, 4, tzinfo=timezone.utc)
@@ -220,6 +221,55 @@ def test_replace_keeps_only_the_latest_snapshot(tmp_path: Path) -> None:
     store.replace(())
     assert path.read_text(encoding="utf-8") == ""
     assert store.load().events == ()
+
+
+def test_replace_many_keeps_every_previous_file_when_staging_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events = tmp_path / "events.jsonl"
+    alerts = tmp_path / "alerts.json"
+    summary = tmp_path / "analysis_summary.json"
+    sibling = tmp_path / "notes.txt"
+    events.write_text("previous-events\n", encoding="utf-8")
+    alerts.write_text("previous-alerts\n", encoding="utf-8")
+    summary.write_text("previous-summary\n", encoding="utf-8")
+    sibling.write_text("keep", encoding="utf-8")
+
+    import loginguard.storage.files as files
+
+    real_write = files._write_temp
+
+    def fail_third(path: Path, text: str) -> Path:
+        if path.name == "analysis_summary.json":
+            raise OSError("disk full")
+        return real_write(path, text)
+
+    monkeypatch.setattr(files, "_write_temp", fail_third)
+
+    with pytest.raises(StorageError) as exc:
+        replace_many(
+            (
+                (events, "new-events\n"),
+                (alerts, "new-alerts\n"),
+                (summary, "new-summary\n"),
+            )
+        )
+
+    assert "unable to write" in str(exc.value)
+    assert "new-events" not in str(exc.value)
+    assert events.read_text(encoding="utf-8") == "previous-events\n"
+    assert alerts.read_text(encoding="utf-8") == "previous-alerts\n"
+    assert summary.read_text(encoding="utf-8") == "previous-summary\n"
+    assert sibling.read_text(encoding="utf-8") == "keep"
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
+def test_replace_many_rejects_one_path_used_twice(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    with pytest.raises(StorageError) as exc:
+        replace_many(((path, "one\n"), (path, "two\n")))
+    assert str(exc.value) == "snapshot paths must be distinct files"
+    assert not path.exists()
 
 
 def test_sequences_must_be_the_right_type(tmp_path: Path) -> None:
